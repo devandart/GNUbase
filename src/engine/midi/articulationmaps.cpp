@@ -307,20 +307,19 @@ namespace gnubase::engine::midi
 			}
 			if (renamed.empty())
 				return;
+			// An inactive version's shared copies are all in that version (track-versions.md), so they are all on
+			// the track; its parts change unannounced, as they aren't there to see.
 			std::set<ObjectId> shared;
-			for (auto& [id, track] : project.trackById)
-				if (track.articulationMap == after.id)
+			for (const auto& [id, part] : project.midiParts)
+				if (part.shared != 0 && articulationMapOf(project, part.track) == &after)
+					shared.insert(part.shared);
+			forEveryEventAndPart(
+				project, [](const AudioEvent&, bool) {}, [](const AudioPart&, bool) {},
+				[&](MidiPart& part, bool plays)
 				{
-					for (TrackVersion& version : track.versions)
-						for (MidiPart& part : version.midiParts)
-							rename(part, renamed, nullptr);
-					for (const auto& [partId, part] : project.midiParts)
-						if (part.track == id && part.shared != 0)
-							shared.insert(part.shared);
-				}
-			for (auto& [id, part] : project.midiParts)
-				if (articulationMapOf(project, part.track) == &after || shared.count(part.shared) != 0)
-					rename(part, renamed, &context);
+					if (articulationMapOf(project, part.track) == &after || (plays && shared.count(part.shared) != 0))
+						rename(part, renamed, plays ? &context : nullptr);
+				});
 		}
 
 		Json setMap(Project& project, CommandContext& context)
@@ -360,6 +359,20 @@ namespace gnubase::engine::midi
 			out.close();
 			require(static_cast<bool>(out), "can't write " + path);
 			return Json::object();
+		}
+
+		// The sound slot each note of a part plays (#1498), as the sound slots lane shows it.
+		Json listSoundSlots(Project& project, CommandContext& context)
+		{
+			const auto id = context.parameters().at("part").get<ObjectId>();
+			const auto part = project.midiParts.find(id);
+			require(part != project.midiParts.end(), "no MIDI part " + std::to_string(id));
+			const ArticulationMap* map = articulationMapOf(project, part->second.track);
+			Json notes = Json::array();
+			if (map != nullptr)
+				for (const auto& [note, slot] : soundSlots(*map, part->second))
+					notes.push_back({{"note", note}, {"slot", slot}, {"name", map->slots.at(slot).name}});
+			return {{"map", map != nullptr ? map->id : 0}, {"notes", notes}};
 		}
 
 		Json importMap(Project& project, CommandContext& context)
@@ -713,6 +726,23 @@ namespace gnubase::engine::midi
 				"the project as a new map. Emits articulationMap.added and returns the map.",
 				object({{"path", stringSchema}}, {"path"}), mapResult, false},
 			"Import articulation map", importMap);
+		model.addEdit(engine,
+			{"articulationMap.soundSlots", 1,
+				"The sound slot each note of a MIDI part plays (reference manual p. 1287), as the Articulations lane's "
+				"sound slots lane shows it: of each group the note's attribute, else the direction in effect at its "
+				"start, and the slot with exactly those articulations, else the closest one, else the default slot. "
+				"Returns map, the part's track's articulation map (0 for none), and notes, each {note, slot (the "
+				"slot's index in the map's slots), name (the slot's)}, by note id; none without a map or slots.",
+				object({{"part", idSchema}}, {"part"}),
+				object({{"map", idSchema},
+						   {"notes",
+							   {{"type", "array"},
+								   {"items",
+									   object({{"note", idSchema}, {"slot", idSchema}, {"name", stringSchema}},
+										   {"note", "slot", "name"})}}}},
+					{"map", "notes"}),
+				true},
+			"", listSoundSlots);
 	}
 }
 

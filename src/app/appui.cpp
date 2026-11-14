@@ -148,7 +148,7 @@ namespace gnubase::app
 			const char* keys;
 		};
 
-		constexpr std::array<ProjectCommand, 91> g_projectCommands{{
+		constexpr std::array<ProjectCommand, 92> g_projectCommands{{
 			{"zoom.in", "Zooms the project window in.", "H"},
 			{"zoom.out", "Zooms the project window out.", "G"},
 			{"zoom.inVertically", "Makes the project window's tracks taller.", "Shift+H"},
@@ -193,6 +193,8 @@ namespace gnubase::app
 				nullptr},
 			{"audio.crossfade",
 				"Crossfades the selected audio events, or opens the crossfade editor for their crossfade.", "X"},
+			{"audio.crossfadeEditor", "Opens the crossfade editor for the crossfade of the selected audio events.",
+				nullptr},
 			{"audio.removeFadeIn", "Removes the fade in of the selected audio events.", nullptr},
 			{"audio.removeFadeOut", "Removes the fade out of the selected audio events.", nullptr},
 			{"audio.removeFades", "Removes the fades and crossfades of the selected audio events.", nullptr},
@@ -401,6 +403,15 @@ namespace gnubase::app
 				  const auto position = event.data.at("position").get<size_t>();
 				  m_canUndo = position > 0;
 				  m_canRedo = position < event.data.at("steps").get<size_t>();
+			  })),
+		  m_projectReset(m_binding.on("project.reset",
+			  [this](const engine::Event&)
+			  {
+				  for (const Rml::ObserverPtr<Rml::Element>& open : m_projectDialogs)
+					  if (auto* document = dynamic_cast<Rml::ElementDocument*>(open.get());
+						  document != nullptr && document->GetParentNode() != nullptr)
+						  document->Close();
+				  m_projectDialogs.clear();
 			  })),
 		  m_files(m_keys, m_binding, m_shell, resources / "ui")
 	{
@@ -651,7 +662,7 @@ namespace gnubase::app
 											  : std::optional<std::pair<uint64_t, int64_t>>();
 					},
 					[this] { return m_eventDisplay ? m_eventDisplay->selection() : std::vector<uint64_t>(); },
-					[this]
+					[this](std::function<void(const std::string&)> import)
 					{
 						// Import from MIDI Loop (p. 1379): the loop chosen in the window the pads show in.
 						const ui::Window* window = m_docking.windowOf("chordPads");
@@ -660,12 +671,12 @@ namespace gnubase::app
 						dialog.filters = {{"MIDI files", "mid;midi;smf"}, {"All files", "*"}};
 						dialog.parent = (window != nullptr ? *window : m_main).id();
 						m_shell.showFileDialog(dialog,
-							[this](const ui::FileDialogResult& result)
+							[import = std::move(import)](const ui::FileDialogResult& result)
 							{
 								if (!result.error.empty())
 									logging::warning("The file dialog failed: {}", result.error);
 								if (!result.files.empty())
-									m_binding.send("chordPads.setPattern", {{"file", result.files.front().u8string()}});
+									import(result.files.front().u8string());
 							});
 					});
 			}});
@@ -735,6 +746,14 @@ namespace gnubase::app
 						ui::Window* window = m_docking.windowOf("drumMachine");
 						m_keys.run("project.addDrumTrack", engine::Json::object(), window != nullptr ? *window : m_main,
 							nullptr);
+					},
+					[this](uint64_t track, const std::string& mode)
+					{
+						// The track preset dialog for the drum track shown, as the track list's Load and Save Track
+						// Preset open it for the selected tracks.
+						ui::Window* window = m_docking.windowOf("drumMachine");
+						openDialog(window != nullptr ? *window : m_main, "track-preset.rml",
+							{{"mode", mode}, {"tracks", std::to_string(track)}});
 					});
 				m_drums = drums;
 				return drums;
@@ -1212,6 +1231,9 @@ namespace gnubase::app
 			m_keys.bind({wind.keys, wind.id});
 		}
 		m_shell.eachStep([this] { return m_winding.step(); });
+		// The transport panel follows its sections whenever an update may have changed their width (#1527).
+		m_shell.afterUpdate([this](ui::Window& window)
+			{ return window.id() == m_transportPanel.window && fitSections(window, false); });
 		// The time display window's context menu (reference manual p. 313).
 		m_keys.add({"timeDisplay.beatCountOnly",
 			"Shows only the beat in its bar in the time display window, or the whole position again.",
@@ -1259,14 +1281,15 @@ namespace gnubase::app
 
 	void AppUi::showKeyCommandsError(ui::WindowId window, const std::string& title, const std::string& error)
 	{
-		logging::warning("{}: {}", title, error);
+		if (!error.empty())
+			logging::warning("{}: {}", title, error);
 		Rml::Element* document = m_keyDialog.get();
 		Rml::Element* message = document != nullptr && document->GetParentNode() != nullptr
 			? document->GetElementById("keycommands-message")
 			: nullptr;
 		if (message != nullptr)
-			message->SetInnerRML(Rml::StringUtilities::EncodeRml(error));
-		else
+			message->SetInnerRML(error.empty() ? std::string() : Rml::StringUtilities::EncodeRml(error));
+		else if (!error.empty())
 			m_files.showNotice(window, title, error);
 	}
 
@@ -1300,8 +1323,8 @@ namespace gnubase::app
 							const std::filesystem::path& file = result.files.front();
 							const auto failed = [this, id, title](const engine::Result& done)
 							{
-								if (!done.ok())
-									showKeyCommandsError(id, title, done.error);
+								// A command that worked takes the message of an earlier failure away.
+								showKeyCommandsError(id, title, done.ok() ? std::string() : done.error);
 							};
 							if (exporting)
 								m_binding.send("keyCommands.export", {{"path", file.u8string()}}, failed);
@@ -1337,8 +1360,8 @@ namespace gnubase::app
 						}
 						catch (const std::exception& error)
 						{
-							showKeyCommandsError(id, title,
-								"Can't write the key command assignments " + file.u8string() + ": " + error.what());
+							showKeyCommandsError(
+								id, title, std::string("Can't write the key command assignments: ") + error.what());
 						}
 					});
 			}});
@@ -1455,6 +1478,7 @@ namespace gnubase::app
 	{
 		if (const ui::Window* window = shown.shown(m_shell))
 		{
+			m_docking.saveWindows(); // its bounds as the user left them
 			shown.controls.reset();
 			m_shell.close(window->id());
 			shown.window = 0;
@@ -1495,24 +1519,13 @@ namespace gnubase::app
 		if (root == controls)
 		{
 			m_docking.attach("transportPanel", *document);
-			// The controls show the project once the engine answered their queries, and their displays grow with
-			// their text: a query sent now is answered after those, so the sections are measured again as they show
-			// it, and the bounds kept at once (#1474). Fitted to the controls' defaults until then, so that a panel
-			// closed before the answer doesn't keep the unfitted width in ui.layout.
+			// Fitted to the controls' defaults at once, so that a panel closed before the engine answered their
+			// queries doesn't keep the unfitted width in ui.layout. Once they show the project, their displays grow
+			// with their text, and the panel follows (#1474, #1527).
+			shown.sections = controls->GetObserverPtr();
+			shown.unfitted = 0;
 			if (!spec.bounds)
-			{
-				fitSections(window, *controls);
-				m_binding.send("engine.version", engine::Json::object(),
-					[this, id = window.id(), fitted = controls->GetObserverPtr()](const engine::Result&)
-					{
-						ui::Window* shownWindow = m_shell.find(id);
-						if (Rml::Element* element = fitted.get(); element != nullptr && shownWindow != nullptr)
-						{
-							fitSections(*shownWindow, *element);
-							m_docking.saveWindows();
-						}
-					});
-			}
+				fitSections(window, true);
 		}
 		else
 		{
@@ -1530,27 +1543,56 @@ namespace gnubase::app
 		}
 	}
 
-	void AppUi::fitSections(ui::Window& window, Rml::Element& controls)
+	bool AppUi::fitSections(ui::Window& window, bool centre)
 	{
+		TransportWindow& panel = m_transportPanel;
+		Rml::Element* controls = panel.sections.get();
 		const std::vector<ui::Display> displays = m_shell.displays();
 		const ui::Size pixels = window.pixelSize();
-		if (displays.empty() || pixels.width <= 0)
-			return;
-		window.context().Update();
+		if (controls == nullptr || displays.empty() || pixels.width <= 0)
+			return false;
+		const ui::Rect bounds = m_shell.bounds(window.id());
+		const std::optional<int> fitted = m_docking.fittedWidth("transportPanel");
+		if (!centre)
+		{
+			if (!fitted || (bounds.width != *fitted && bounds.width != panel.unfitted))
+				return false; // sized by the user, or by a layout from before #1527
+			if (bounds.width == *fitted)
+				panel.unfitted = 0;
+		}
+		else
+		{
+			window.context().Update(); // a new document
+		}
 		float right = 0;
 		Rml::ElementList sections;
-		controls.QuerySelectorAll(sections, ".transport-section");
+		controls->QuerySelectorAll(sections, ".transport-section");
 		for (Rml::Element* section : sections)
 			if (section->IsVisible())
 				right = std::max(right,
 					section->GetAbsoluteLeft() + section->GetOffsetWidth() +
 						section->GetBox().GetEdge(Rml::BoxArea::Margin, Rml::BoxEdge::Right));
 		if (right <= 0)
-			return;
-		const ui::Rect bounds = m_shell.bounds(window.id());
-		const int width =
-			static_cast<int>(std::ceil(right * static_cast<float>(bounds.width) / static_cast<float>(pixels.width)));
-		m_shell.setBounds(window.id(), ui::centred({width, bounds.height}, displays.front()));
+			return false;
+		const ui::Display* display = centre ? nullptr : ui::displayOf(bounds, displays);
+		const ui::Rect& area = (display != nullptr ? *display : displays.front()).usable;
+		const int width = std::min(area.width,
+			static_cast<int>(std::ceil(right * static_cast<float>(bounds.width) / static_cast<float>(pixels.width))));
+		if (!centre && width == fitted)
+			return false;
+		// An open panel stays where it is, moved left only as far as its monitor's right edge needs.
+		const ui::Rect fit = centre
+			? ui::centred({width, bounds.height}, displays.front())
+			: ui::Rect{std::min(bounds.x, area.x + area.width - width), bounds.y, width, bounds.height};
+		m_shell.setBounds(window.id(), fit);
+		// A window system that sizes windows later has the old width meanwhile; one that gave the window a width of
+		// its own, such as a minimum, keeps that as the fit's.
+		const int now = m_shell.bounds(window.id()).width;
+		const bool applied = now != bounds.width || now == width;
+		panel.unfitted = applied ? 0 : bounds.width;
+		m_docking.setFittedWidth("transportPanel", applied ? now : width);
+		m_docking.saveWindows(); // so that a panel closed at once comes back as wide
+		return true;
 	}
 
 	void AppUi::toggleTransportPanel()
@@ -1593,6 +1635,7 @@ namespace gnubase::app
 		m_transposeLane.reset();
 		m_chordLane.reset();
 		m_scaleLane.reset();
+		m_arrangerLane.reset();
 		m_rulerLanes.reset();
 		m_inPlace.reset();
 		// The transport bar's sections are there when the docking system reads them.
@@ -1607,6 +1650,13 @@ namespace gnubase::app
 		m_infoLine.reset();
 		m_toolbarQuantize.reset();
 		m_eventDisplay = std::make_unique<ui::EventDisplay>(m_engine, m_binding, *root);
+		// The quantize panel lists the tracks of the selected audio events with hitpoints (#1344).
+		m_eventDisplay->onSelectionShown(
+			[this]
+			{
+				if (const std::shared_ptr<ui::QuantizePanel> panel = m_quantizePanel.lock())
+					panel->showHitpointTracks(hitpointTracks());
+			});
 		if (Rml::Element* quantize = document->GetElementById("toolbar-quantize"))
 			m_toolbarQuantize = std::make_unique<ui::QuantizePanel>(m_binding, *quantize,
 				ui::QuantizePanel::Layout::Toolbar,
@@ -1633,6 +1683,7 @@ namespace gnubase::app
 		m_transposeLane = std::make_unique<ui::GlobalEventLane>(*m_eventDisplay, m_binding);
 		m_chordLane = std::make_unique<ui::GlobalEventLane>(*m_eventDisplay, m_binding, ui::LaneKind::Chord);
 		m_scaleLane = std::make_unique<ui::GlobalEventLane>(*m_eventDisplay, m_binding, ui::LaneKind::Scale);
+		m_arrangerLane = std::make_unique<ui::GlobalEventLane>(*m_eventDisplay, m_binding, ui::LaneKind::Arranger);
 		m_rulerLanes = std::make_unique<ui::RulerLanes>(*m_eventDisplay);
 		m_inPlace = std::make_unique<ui::InPlaceEditors>(*m_eventDisplay, m_binding);
 		if (m_infoLine)
@@ -2165,6 +2216,7 @@ namespace gnubase::app
 		const bool shown = m_sampleEditor.window != 0 && m_shell.find(m_sampleEditor.window) != nullptr;
 		if (open == shown)
 			return;
+		m_sampleEditor.quantize.reset();
 		m_sampleEditor.editor.reset();
 		if (shown)
 		{
@@ -2191,6 +2243,15 @@ namespace gnubase::app
 		}
 		document->Show();
 		m_sampleEditor.editor = std::make_unique<ui::SampleEditor>(m_binding, *root);
+		// The quantize functions of the sample editor's toolbar (p. 367), on the event it edits (quantizeTarget).
+		if (Rml::Element* quantize = document->GetElementById("toolbar-quantize"))
+			m_sampleEditor.quantize =
+				std::make_unique<ui::QuantizePanel>(m_binding, *quantize, ui::QuantizePanel::Layout::Toolbar,
+					[this](const std::string& command)
+					{
+						if (ui::Window* window = m_shell.find(m_sampleEditor.window))
+							m_keys.run(command, engine::Json::object(), *window, nullptr);
+					});
 	}
 
 	void AppUi::followEditor(const engine::Json& view)
@@ -2265,6 +2326,7 @@ namespace gnubase::app
 		}
 		if (m_sampleEditor.window != 0 && m_shell.find(m_sampleEditor.window) == nullptr)
 		{
+			m_sampleEditor.quantize.reset();
 			m_sampleEditor.editor.reset();
 			m_sampleEditor.window = 0;
 			m_binding.send("sampleEditor.close");
@@ -2607,8 +2669,25 @@ namespace gnubase::app
 		Rml::ElementDocument* document = window.context().LoadDocument(file.generic_u8string());
 		if (document == nullptr)
 			throw std::runtime_error("cannot load the dialog " + file.u8string());
+		// The attributes with ids of the project's objects. The articulation map setup follows project.reset itself,
+		// dropping its track.
+		constexpr std::array<std::string_view, 7> ids = {
+			"below", "destination", "notes", "parts", "send", "track", "tracks"};
+		bool forObjects = false;
 		for (const auto& [attribute, value] : attributes)
+		{
 			document->SetAttribute(attribute, value);
+			forObjects = forObjects ||
+				(!value.empty() && std::find(ids.begin(), ids.end(), attribute) != ids.end() &&
+					std::string_view(name) != "articulation-maps.rml");
+		}
+		if (forObjects)
+		{
+			m_projectDialogs.erase(std::remove_if(m_projectDialogs.begin(), m_projectDialogs.end(),
+									   [](const Rml::ObserverPtr<Rml::Element>& open) { return !open; }),
+				m_projectDialogs.end());
+			m_projectDialogs.push_back(document->GetObserverPtr());
+		}
 		document->Show(Rml::ModalFlag::Modal);
 		return *document;
 	}

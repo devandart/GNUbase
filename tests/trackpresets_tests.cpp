@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -1019,6 +1020,53 @@ TEST_CASE("track.import gives the versions of new tracks IDs of their own, share
 	CHECK(kept.at("midiParts")[0].at("position") == 0);
 }
 
+TEST_CASE("track.import keeps implicit first versions in the imported version group", "[integration]")
+{
+	const test::TempDir dir;
+	const fs::path song = dir.path() / "Mixed versions.dawproject";
+	Engine engine(gnubase::audio::makeBackends(), dir.path() / "settings");
+	Client client(engine);
+	const Added versioned = add(client, {{"type", "midi"}, {"name", "Versioned"}});
+	const Added plain = add(client, {{"type", "midi"}, {"name", "Plain"}});
+	run(client, "midiPart.add", {{"track", versioned.track}, {"position", 0}, {"length", 960}});
+	run(client, "midiPart.add", {{"track", plain.track}, {"position", 960}, {"length", 960}});
+	run(client, "trackVersion.add", {{"tracks", {versioned.track}}});
+	run(client, "midiPart.add", {{"track", versioned.track}, {"position", 1920}, {"length", 960}});
+	run(client, "project.save", {{"path", song.u8string()}});
+	const Project source = loadDawProject(song.u8string(), dir.path().u8string(), false);
+	REQUIRE(source.trackById.at(versioned.track).versions.size() == 2);
+	REQUIRE(source.trackById.at(plain.track).versions.empty());
+
+	run(client, "project.new");
+	const Added existing = add(client, {{"type", "midi"}, {"name", "Existing"}});
+	run(client, "trackVersion.add", {{"tracks", {existing.track}}});
+	const Json imported = run(client, "track.import", {{"path", song.u8string()}}).at("tracks");
+	REQUIRE(imported.size() == 2);
+	const Json project = run(client, "project.get");
+	const Json first = trackNamed(project, "Versioned");
+	const Json second = trackNamed(project, "Plain");
+	const ObjectId firstTrack = first.at("id").get<ObjectId>();
+	const ObjectId secondTrack = second.at("id").get<ObjectId>();
+	const int firstVersion = first.at("versions")[0].at("id").get<int>();
+	CHECK(firstVersion > 2);
+	CHECK(idsOf(second) == std::vector<int>{firstVersion});
+	CHECK(second.at("activeVersion") == firstVersion);
+
+	// Leave both imported first versions, then activate their group without touching the project's own group.
+	run(client, "trackVersion.add", {{"tracks", {firstTrack, secondTrack}}});
+	const Json activated = run(client, "trackVersion.activate",
+		{{"tracks", {firstTrack, secondTrack, existing.track}}, {"version", firstVersion}});
+	CHECK(activated.at("tracks").size() == 2);
+	const Json playingFirst = run(client, "project.get");
+	CHECK(playing(playingFirst, firstTrack) == std::vector<int64_t>{0});
+	CHECK(playing(playingFirst, secondTrack) == std::vector<int64_t>{960});
+	CHECK(trackNamed(playingFirst, "Existing").at("activeVersion") == 2);
+	run(client, "history.undo");
+	CHECK(run(client, "project.get").at("midiParts").empty());
+	run(client, "history.redo");
+	CHECK(playing(run(client, "project.get"), secondTrack) == std::vector<int64_t>{960});
+}
+
 TEST_CASE("track.import without automation resets the automation of a track that it imports events or settings onto",
 	"[integration]")
 {
@@ -1234,6 +1282,47 @@ TEST_CASE("track.import returns the media files it added, not the ones it shares
 	CHECK(project.at("media").size() == 2);
 	CHECK(fs::equivalent(
 		fs::u8path(find(project.at("media"), media[0].get<ObjectId>()).at("path").get<std::string>()), added));
+}
+
+TEST_CASE("track.import shares the project's clips that are the same, also those of an import before", "[integration]")
+{
+	const test::TempDir dir;
+	const fs::path wav = dir.path() / "loop.wav";
+	test::writeWav(wav, {std::vector<float>(4800, 0.25f), 1, 48000});
+	const fs::path archive = dir.path() / "Loops.dawproject";
+	Engine engine(gnubase::audio::makeBackends(), dir.path() / "settings");
+	Client client(engine);
+	const Added take = add(client, {{"type", "audio"}, {"name", "Take"}});
+	const ObjectId media = run(client, "media.add", {{"path", wav.u8string()}}).at("media").at("id").get<ObjectId>();
+	// Two clips of the file that differ only in their ids: the import makes them one.
+	for (int i = 0; i < 2; ++i)
+	{
+		const ObjectId clip = run(client, "clip.add", {{"media", media}}).at("clip").at("id").get<ObjectId>();
+		run(client, "audioEvent.add",
+			{{"track", take.track}, {"clip", clip}, {"position", i * 4800}, {"offset", 0}, {"length", 4800}});
+	}
+	run(client, "track.export", {{"tracks", {take.track}}, {"path", archive.u8string()}});
+
+	run(client, "project.new");
+	const auto clipsOfEvents = [&client]
+	{
+		std::set<ObjectId> clips;
+		const Json project = run(client, "project.get");
+		for (const Json& event : project.at("audioEvents"))
+			clips.insert(event.at("clip").get<ObjectId>());
+		return clips;
+	};
+	run(client, "track.import", {{"path", archive.u8string()}});
+	CHECK(run(client, "project.get").at("clips").size() == 1);
+	CHECK(clipsOfEvents().size() == 1);
+	// The archive imported again shares the clip and the media file of the first import.
+	run(client, "track.import", {{"path", archive.u8string()}});
+	const Json project = run(client, "project.get");
+	CHECK(project.at("tracks").size() == 2);
+	CHECK(project.at("audioEvents").size() == 4);
+	CHECK(project.at("clips").size() == 1);
+	CHECK(project.at("media").size() == 1);
+	CHECK(clipsOfEvents().size() == 1);
 }
 
 TEST_CASE("track.importSources lists the sample rates of the media files each track of a file plays", "[integration]")

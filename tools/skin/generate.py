@@ -34,11 +34,17 @@ THEMES = {
         "timeDisplaySizes": [32, 48, 64, 96, 128],
         "fontFamilies": {"ui": "Inter", "counter": "JetBrains Mono"},
         "glow": True,
+        # Flat widgets, as the mockup shows them (#1328): toolbar and transport buttons without frames until the mouse
+        # is over them or they are checked, tabs underlined, zones raised panels over the window's background, and
+        # frameless mute, solo and record buttons. The other themes keep framed widgets.
+        "flat": True,
         # Events in the event display, tinted in their colors as the mockup shows (#1312): how opaque a body is, the
-        # tint laid over an event's color for its outline and waveform, the stroke that events without a color are
-        # outlined in, and the alpha of the selected events' light. None in the other themes: opaque events in their
-        # colors, outlined in the stroke color, selected ones painted over, as before.
-        "events": {"fillOpacity": 0.45, "tint": "#ffffff59", "stroke": ("#ffffff", .35), "selected": "29"},
+        # shade laid over an event's color for its outline and waveform and over the accent for the outline of events
+        # without a color, how opaque the selected events' light is, and how far events and their waveforms keep off
+        # their lanes' edges (<waveform> takes event-inset, inside the 2dp padding every theme keeps between a waveform
+        # and its event's edges, resources/styles/base.rcss). None in the other themes: opaque events in their colors,
+        # outlined in the stroke color, selected ones painted over, at their lanes' full height, as before.
+        "events": {"fillOpacity": 0.45, "shade": ("#ffffff", .35), "selected": .16, "inset": "2dp"},
     },
     "dark": {
         "displayName": "Dark",
@@ -59,6 +65,7 @@ THEMES = {
         "timeDisplaySizes": [32, 48, 64, 96, 128],
         "fontFamilies": {"ui": "Inter", "counter": "JetBrains Mono"},
         "glow": False,
+        "flat": False,
         "events": None,
     },
     "light": {
@@ -80,6 +87,7 @@ THEMES = {
         "timeDisplaySizes": [32, 48, 64, 96, 128],
         "fontFamilies": {"ui": "Inter", "counter": "JetBrains Mono"},
         "glow": False,
+        "flat": False,
         "events": None,
     },
     # Black, white and bright colors that meet WCAG's enhanced contrast (7:1) for text, white borders around every
@@ -103,6 +111,7 @@ THEMES = {
         "timeDisplaySizes": [32, 48, 64, 96, 128],
         "fontFamilies": {"ui": "Inter", "counter": "JetBrains Mono"},
         "glow": False,
+        "flat": False,
         "focusRing": 2,
         "events": None,
     },
@@ -118,6 +127,7 @@ NINE_NAMES = [
     "button-primary-normal", "button-primary-hover", "button-primary-pressed",
     "toggle-off", "toggle-hover", "toggle-mute", "toggle-solo", "toggle-record", "toggle-monitor",
     "field-normal", "field-focus", "field-disabled", "dropdown-normal", "dropdown-hover", "dropdown-open",
+    "dropdown-button-normal", "dropdown-button-hover", "disclosure-open", "disclosure-closed",
     "menu", "menu-item-hover", "menu-separator", "list", "list-item-hover", "list-item-selected",
     "tabbar", "tab-normal", "tab-hover", "tab-active",
     "scrollbar-track-vertical", "scrollbar-track-horizontal", "scrollbar-thumb-vertical", "scrollbar-thumb-horizontal",
@@ -134,7 +144,7 @@ FIXED_NAMES = [
 SIZES = {
     "dialog": (32, 32), "dialog-titlebar": (32, 24), "panel": (24, 24), "panel-header": (24, 20),
     "toolbar": (24, 24), "display": (24, 24), "tooltip": (24, 24), "focus-ring": (20, 20),
-    "button": (24, 24), "toggle": (20, 20), "field": (24, 24), "dropdown": (24, 24),
+    "button": (24, 24), "toggle": (20, 20), "field": (24, 24), "dropdown": (24, 24), "dropdown-button": (40, 24), "disclosure": (40, 24),
     "menu": (24, 24), "menu-item": (24, 20), "menu-separator": (16, 8), "list": (24, 24),
     "list-item": (24, 20), "tabbar": (24, 24), "tab": (24, 24), "scrollbar-track-vertical": (10, 24),
     "scrollbar-track-horizontal": (24, 10), "scrollbar-thumb-vertical": (10, 24),
@@ -198,7 +208,9 @@ def nine_svg(name: str, theme: dict) -> tuple[int, int, str, dict]:
         bg = mix(c["surface"], c["surfaceRaised"], .55)
     elif name == "display":
         bg = mix(c["background"], "#000000", .20); border = mix(c["border"], c["accent"], .20)
-        extra = f'<line x1="5" y1="{h-4.5}" x2="{w-5}" y2="{h-4.5}" stroke="{c["accent"]}" opacity=".35"/>'
+        if theme["flat"]:  # a raised field, lighter than its panel, without the accent line
+            bg = mix(c["surfaceRaised"], c["border"], .55); border = mix(c["border"], c["surfaceRaised"], .2)
+        else: extra = f'<line x1="5" y1="{h-4.5}" x2="{w-5}" y2="{h-4.5}" stroke="{c["accent"]}" opacity=".35"/>'
     elif name == "tooltip":
         bg = mix(c["surfaceRaised"], c["background"], .25); border = mix(c["border"], c["textMuted"], .25)
     elif name == "focus-ring":
@@ -226,12 +238,35 @@ def nine_svg(name: str, theme: dict) -> tuple[int, int, str, dict]:
     elif name.startswith("toggle-"):
         state = name.removeprefix("toggle-"); r = 3
         colors = {"mute": c["warning"], "solo": c["accent"], "record": c["danger"], "monitor": c["success"]}
-        if state == "hover": bg = mix(bg, accent, .14); border = mix(border, accent, .5)
+        if theme["flat"] and state in ("off", "hover"):
+            bg = mix(c["surfaceRaised"], c["border"], .7 if state == "off" else 1); border = "none"
+        elif state == "hover": bg = mix(bg, accent, .14); border = mix(border, accent, .5)
         elif state in colors:
             bg = mix(colors[state], c["background"], .10 if theme["glow"] else .24); border = colors[state]
             extra = glow_rect(w, h, colors[state], r) if theme["glow"] else ""
+    elif name.startswith(("disclosure-", "dropdown-button-")) and not theme["flat"]:
+        # Framed themes draw no arrows on buttons: their drop-down and section header buttons are the plain button,
+        # under the mouse too (flat_rules)
+        return nine_svg("button-hover" if name.endswith("hover") else "button-normal", theme)
+    elif name.startswith("disclosure-"):
+        # A section header's arrow in the left slice, which doesn't stretch, pointing down while the section is open;
+        # nothing else, so the header's background shows
+        y = h / 2
+        points = f"7,{y-2} 11,{y+2} 15,{y-2}" if name.endswith("open") else f"9,{y-4} 13,{y} 9,{y+4}"
+        arrow = (f'<polyline points="{points}" fill="none" stroke="{c["textMuted"]}" stroke-width="1.5" '
+                 'stroke-linecap="round" stroke-linejoin="round"/>')
+        return w, h, svg_doc(w, h, arrow), {"left": 20, "top": 6, "right": 6, "bottom": 6}
+    elif name.startswith("dropdown-button-"):
+        # A menu button that shows a value: a field with the arrow in its right slice, which doesn't stretch across
+        bg = mix(c["surface"], c["surfaceRaised"], .7)
+        if name.endswith("hover"): border = mix(border, accent, .55)
+        y = h / 2
+        arrow = (f'<polyline points="{w-15},{y-2} {w-11},{y+2} {w-7},{y-2}" fill="none" stroke="{c["textMuted"]}" '
+                 'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>')
+        return w, h, svg_doc(w, h, rect(w, h, bg, border, r, 1, None, .5) + arrow), {"left": 6, "top": 6, "right": 20, "bottom": 6}
     elif name.startswith("field-") or name.startswith("dropdown-"):
-        state = name.split("-")[-1]; bg = mix(c["background"], c["surface"], .28)
+        state = name.split("-")[-1]
+        bg = mix(c["surface"], c["surfaceRaised"], .7) if theme["flat"] else mix(c["background"], c["surface"], .28)
         if state in ("focus", "open"): border = accent; extra = glow_rect(w, h, accent, r) if theme["glow"] else ""
         elif state == "hover": border = mix(border, accent, .55)
         elif state == "disabled": bg = mix(c["surface"], c["background"], .35); border = mix(border, bg, .45)
@@ -240,6 +275,9 @@ def nine_svg(name: str, theme: dict) -> tuple[int, int, str, dict]:
     elif name == "menu-separator":
         bg = "none"; border = "none"; r = 0; inset = 2
         extra = f'<line x1="2" y1="{h/2+.5}" x2="{w-2}" y2="{h/2+.5}" stroke="{c["border"]}"/>'
+    elif name == "list-item-selected" and theme["flat"]:
+        # The mockup's selection: a tint of the second accent, outlined in it
+        bg = mix(c["surfaceRaised"], c["accent2"], .2); border = mix(c["accent2"], c["text"], .1); r = 3
     elif name == "list-item-selected":
         bg = mix(c["surfaceRaised"], accent, .25); border = accent; r = 2
         extra = f'<rect x=".5" y="2" width="2" height="{h-4}" rx="1" fill="{accent}"/>'
@@ -259,6 +297,10 @@ def nine_svg(name: str, theme: dict) -> tuple[int, int, str, dict]:
     elif name == "slider-fill":
         bg = accent; border = mix(accent, "#ffffff", .12); r = 4; inset = 1
         if theme["glow"]: extra = glow_rect(w, h, accent, 4)
+    elif name == "fader-track" and theme["flat"]:
+        # A thin slot down the middle, no box around it
+        bg = "none"; border = "none"; r = 0; inset = 2
+        extra = f'<rect x="{w/2-2}" y="2" width="4" height="{h-4}" rx="2" fill="{mix(c["background"], "#000000", .3)}"/>'
     elif name == "fader-track":
         bg = mix(c["background"], "#000000", .12); border = c["border"]; r = 4; inset = 2
         extra = f'<line x1="{w/2+.5}" y1="4" x2="{w/2+.5}" y2="{h-4}" stroke="{mix(c["border"], c["textMuted"], .3)}"/>'
@@ -289,9 +331,21 @@ def fixed_svg(name: str, theme: dict) -> tuple[int, int, str]:
         if theme["glow"]: body += f'<circle cx="8" cy="8" r="7" fill="{accent}" opacity=".14"/>'
         body += f'<circle cx="8" cy="8" r="5.5" fill="{accent}" stroke="{mix(accent,"#ffffff",.3)}"/>'
         body += '<circle cx="6.5" cy="6.5" r="1.2" fill="#ffffff" opacity=".6"/>'
+    elif name == "fader-cap" and theme["flat"]:
+        # A light cap with grip lines, as on a hardware fader
+        light = mix(c["text"], c["textMuted"], .35)
+        body = (f'<defs><linearGradient id="cap" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="{light}"/>'
+                f'<stop offset="100%" stop-color="{mix(light, c["border"], .45)}"/></linearGradient></defs>')
+        body += f'<rect x=".5" y=".5" width="{w-1}" height="{h-1}" rx="2.5" fill="url(#cap)" stroke="{mix(c["border"], "#000000", .2)}"/>'
+        body += "".join(f'<line x1="5" y1="{y+.5}" x2="{w-5}" y2="{y+.5}" stroke="{c["background"]}" opacity=".55"/>'
+                        for y in (3, h // 2, h - 4))
     elif name == "fader-cap":
         body = rect(w, h, mix(bg, accent, .10), mix(border, accent, .45), 3)
         body += f'<line x1="5" y1="{h/2+.5}" x2="{w-5}" y2="{h/2+.5}" stroke="{accent}"/>'
+    elif name == "knob-base" and theme["flat"]:
+        # A ring around a dark body, without the fixed accent arc and the gloss
+        body = f'<circle cx="20" cy="20" r="17" fill="none" stroke="{c["border"]}" stroke-width="3" stroke-dasharray="68 22" transform="rotate(135 20 20)" stroke-linecap="round"/>'
+        body += f'<circle cx="20" cy="20" r="13" fill="{mix(c["surface"], c["background"], .4)}" stroke="{mix(c["border"], c["surfaceRaised"], .3)}"/>'
     elif name == "knob-base":
         body = f'<circle cx="20" cy="20" r="17" fill="none" stroke="{c["border"]}" stroke-width="3" stroke-dasharray="68 22" transform="rotate(135 20 20)"/>'
         body += f'<circle cx="20" cy="20" r="13.5" fill="{mix(bg,c["background"],.22)}" stroke="{border}"/>'
@@ -335,6 +389,123 @@ def luminance(color: str) -> float:
     return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
 
 
+def flat_rules(theme: dict, skin, on_accent: str) -> list:
+    """The flat widgets' rules (#1328): a flat theme's look, or the framed look the other themes keep.
+
+    Every theme gets the same selectors (tests/theme_tests.cpp): a flat theme the first declarations of each pair,
+    the others the second, which give the widgets what the general rules before them already give, so those themes
+    look as before: their drop-down button and disclosure skins are the plain button's (nine_svg). An empty block is
+    for a rule only a flat theme needs. Besides colors and decorators the flat look
+    sets only border radii and the padding that makes room for a drop-down or disclosure arrow.
+
+    Bars' rules skip toggle and primary buttons, which keep their own skins in every theme, and list each state in
+    the general rules' order, so the same state wins in a bar as elsewhere. Bars' buttons take no focus from the
+    keyboard (resources/styles/base.rcss), but they show the ring when they have it, as everywhere.
+    """
+    c = theme["colors"]
+    accent, r, widths = c["accent"], theme["radii"], theme["borderWidths"]
+    ring = skin("focus-ring")
+    dim = mix(c["textMuted"], c["surface"], .45)
+    pressed = mix(c["background"], accent, .24)
+    row = c["surfaceRaised"]
+    bar_tone = mix(c["background"], c["surface"], .4)
+    record = c["danger"]
+
+    def bars(more: str = "", state: str = "", tail: str = "") -> str:
+        """The plain buttons in toolbars and the transport bar, with more classes or attributes, a state and a tail."""
+        return ", ".join(f"{bar} button{more}:not(.toggle):not(.primary){state}{tail}"
+                         for bar in (".toolbar", ".transport"))
+
+    pairs = [
+        # Menu bar and toolbars in the window's dark tone, the zones' panels lighter below them
+        ("menubar", {"background-color": bar_tone}, {}),
+        (".toolbar", {"decorator": "none", "background-color": bar_tone}, {"decorator": skin("toolbar")}),
+        # Their buttons: no frame, muted until the mouse is over them, a soft fill under it, the accent when checked
+        (bars(), {"decorator": "none", "background-color": "transparent", "border-radius": f"{r['control']}dp",
+                  "color": c["textMuted"]},
+         {"decorator": skin("button-normal"), "color": c["text"]}),
+        (bars(tail=" svg.icon"), {"image-color": c["textMuted"]}, {"image-color": c["text"]}),
+        # Menu buttons that show a value (snap type, grid type) look like drop-down fields, with the arrow
+        (bars("[menu]"), {"decorator": skin("dropdown-button-normal"), "color": c["text"], "text-align": "left",
+                          "padding-right": "22dp"},
+         {"decorator": skin("dropdown-button-normal")}),
+        (bars(".icon-only[menu]"), {"decorator": "none", "padding-right": "0", "text-align": "center"}, {}),
+        (bars(state=":hover"), {"decorator": "none", "background-color": mix(c["surfaceRaised"], accent, .14),
+                                "color": c["text"]},
+         {"decorator": skin("button-hover")}),
+        (bars(state=":hover", tail=" svg.icon"), {"image-color": c["text"]}, {"image-color": c["text"]}),
+        (bars("[menu]", ":hover"), {"decorator": skin("dropdown-button-hover")},
+         {"decorator": skin("dropdown-button-hover")}),
+        (bars(".icon-only[menu]", ":hover"), {"decorator": "none"}, {}),
+        (bars(state=":active"), {"decorator": "none", "background-color": pressed},
+         {"decorator": skin("button-pressed")}),
+        (bars("[menu]", ":active"), {}, {"decorator": skin("button-pressed")}),
+        (bars(".checked[menu]"), {}, {"decorator": skin("button-checked")}),
+        (bars(".checked"), {"decorator": "none", "background-color": accent + "2e", "color": accent},
+         {"decorator": skin("button-checked")}),
+        (bars(".checked", tail=" svg.icon"), {"image-color": accent}, {"image-color": c["text"]}),
+        (bars(".suspended"), {"decorator": "none", "background-color": "transparent", "color": c["warning"]},
+         {"decorator": skin("button-normal"), "color": c["warning"]}),
+        (bars(".tapping"), {"decorator": "none", "background-color": pressed}, {"decorator": skin("button-pressed")}),
+        (bars(state=":disabled"), {"decorator": "none", "background-color": "transparent", "color": dim},
+         {"decorator": skin("button-disabled"), "color": c["textMuted"]}),
+        (bars(state=":disabled", tail=" svg.icon"), {"image-color": dim}, {"image-color": c["textMuted"]}),
+        (bars(state=":focus-visible"), {"decorator": ring}, {"decorator": f"{ring}, {skin('button-normal')}"}),
+        (bars(".checked", ":focus-visible"), {"decorator": ring}, {"decorator": f"{ring}, {skin('button-checked')}"}),
+        # Start in the accent, filled while playing; Record in the danger color, filled while recording
+        (".transport #start svg.icon", {"image-color": accent}, {"image-color": c["text"]}),
+        (".transport #start.checked", {"decorator": "none", "background-color": accent},
+         {"decorator": skin("button-checked")}),
+        (".transport #start.checked svg.icon", {"image-color": on_accent}, {"image-color": c["text"]}),
+        (".transport #record svg.icon", {"image-color": record}, {"image-color": c["text"]}),
+        (".transport #record.checked", {"decorator": "none", "background-color": record},
+         {"decorator": skin("button-checked")}),
+        (".transport #record.checked svg.icon", {"image-color": "#ffffff"}, {"image-color": c["text"]}),
+        # The primary time display bold; at the body's size, since the position displays' height is fixed (#1335)
+        (".transport .primary-time", {"color": c["text"], "font-weight": "600"}, {}),
+        # Tabs: no boxes, the selected one's name bright over an accent line
+        ("tabset tabs", {"decorator": "none", "background-color": c["surface"]}, {"decorator": skin("tabbar")}),
+        ("tabset tab", {"decorator": "none", "color": c["textMuted"], "border-bottom-width": "2dp",
+                        "border-bottom-color": "transparent"},
+         {"decorator": skin("tab-normal"), "color": c["textMuted"]}),
+        ("tabset tab:hover", {"decorator": "none", "color": c["text"]},
+         {"decorator": skin("tab-hover"), "color": c["text"]}),
+        ("tabset tab:selected", {"decorator": "none", "color": c["text"], "border-bottom-color": accent},
+         {"decorator": skin("tab-active"), "color": c["text"]}),
+        # Zones are raised panels with rounded corners, the window's background showing between them; the zone with
+        # the keyboard focus framed more quietly
+        (".docking [zone]", {"background-color": c["surface"], "border-radius": f"{r['panel']}dp"}, {}),
+        (".docking .zone-frame", {"border-width": f"{widths['hairline']}dp", "border-color": accent + "8c",
+                                  "border-radius": f"{r['panel']}dp"}, {}),
+        # The event display's lanes on the panels' surface, the track list beside them a step lighter
+        (".event-display", {"background-color": c["surface"]}, {}),
+        (".track-list", {"background-color": mix(c["surface"], c["surfaceRaised"], .5)}, {}),
+        # Track list rows: each a raised row, the window's background between them, the selected one lit
+        (".track-list listitem", {"background-color": row, "border-bottom-color": c["background"]}, {}),
+        (".track-list listitem:hover", {"decorator": "none", "background-color": mix(row, c["text"], .04)},
+         {}),
+        (".track-list listitem.selected", {"decorator": skin("list-item-selected")}, {}),
+        # Inspector sections: a bold name after a disclosure arrow, pointing down while the section is open
+        (".inspector-section button.section-header",
+         {"decorator": skin("disclosure-open"), "background-color": mix(c["surface"], c["surfaceRaised"], .8),
+          "border-radius": f"{r['control']}dp", "color": c["text"], "font-weight": "600", "padding-left": "22dp"},
+         {"decorator": skin("disclosure-open"), "color": c["text"]}),
+        (".inspector-section.collapsed button.section-header", {"decorator": skin("disclosure-closed")},
+         {"decorator": skin("disclosure-closed")}),
+        (".inspector-section button.section-header:hover",
+         {"background-color": mix(c["surfaceRaised"], accent, .1)}, {"decorator": skin("button-hover")}),
+        (".inspector-section button.section-header:active", {"background-color": pressed},
+         {"decorator": skin("button-pressed")}),
+        # Mixer channel strips as raised panels, a line of the window's background between them; the transport bar's
+        # time displays as plain digits
+        (".mixer-channel", {"background-color": c["surfaceRaised"], "border-radius": f"{r['panel']}dp",
+                            "border-right-color": c["background"]}, {}),
+        (".mixer-channel-name", {"font-weight": "600"}, {}),
+        (".transport .display", {"decorator": "none"}, {}),
+    ]
+    return [(selector, flat_look if theme["flat"] else framed) for selector, flat_look, framed in pairs]
+
+
 def theme_rcss(name: str, theme: dict, manifest: dict) -> str:
     """The theme's style sheet: colors, fonts and skins for every widget state, inside the theme's media query.
 
@@ -351,19 +522,24 @@ def theme_rcss(name: str, theme: dict, manifest: dict) -> str:
     ivory, ebony = sorted((c["text"], c["background"]), key=luminance, reverse=True)
 
     events = theme["events"]
+
+    def alpha(opacity: float) -> str:
+        """An opacity from 0 to 1 as the two hex digits of a color's alpha."""
+        return f"{round(opacity * 255):02x}"
+
     if events is None:
         event_look = {"lanes": {"own-fill-opacity": "1", "own-color-tint": "none"}, "tint": "none", "inset": "0dp",
-                      "wave": "2dp 0",
                       "selected": {"color": mix(c["surfaceRaised"], c["accent"], .7), "stroke-color": c["text"]}}
     else:
+        shade, strength = events["shade"]
+        tint = shade + alpha(strength)
         event_look = {
-            "lanes": {"color": c["accent"] + f"{round(events['fillOpacity'] * 255):02x}",
-                      "stroke-color": mix(c["accent"], *events["stroke"]),
-                      "own-fill-opacity": f"{events['fillOpacity']:g}", "own-color-tint": events["tint"]},
-            "tint": events["tint"],
-            "inset": "2dp",
-            "wave": "4dp 0",  # the inset and the 2dp every theme keeps between a waveform and its event's edges
-            "selected": {"color": c["text"] + events["selected"], "stroke-color": c["text"]},
+            "lanes": {"color": c["accent"] + alpha(events["fillOpacity"]),
+                      "stroke-color": mix(c["accent"], shade, strength),
+                      "own-fill-opacity": f"{events['fillOpacity']:g}", "own-color-tint": tint},
+            "tint": tint,
+            "inset": events["inset"],
+            "selected": {"color": c["text"] + alpha(events["selected"]), "stroke-color": c["text"]},
         }
 
     def skin(asset: str) -> str:
@@ -514,7 +690,7 @@ def theme_rcss(name: str, theme: dict, manifest: dict) -> str:
          ".event-display event-lanes.selected-events, .event-display event-lanes.folder-data",
          {"event-inset": event_look["inset"]}),
         (".event-display event-lanes.events", event_look["lanes"]),
-        (".event-display .waveforms waveform", {"own-color-tint": event_look["tint"], "padding": event_look["wave"]}),
+        (".event-display .waveforms waveform", {"own-color-tint": event_look["tint"], "event-inset": event_look["inset"]}),
         (".event-display .overview", {"background-color": c["surface"]}),
         (".event-display .overview event-lanes", {"color": mix(c["surface"], c["accent"], .45),
                                                   "stroke-color": "transparent"}),
@@ -574,6 +750,11 @@ def theme_rcss(name: str, theme: dict, manifest: dict) -> str:
         (".scale-row .scale-event", {"color": c["textMuted"], "font-size": f"{sizes['small']}dp",
                                      "border-left-width": f"{widths['hairline']}dp",
                                      "border-left-color": c["accent"]}),
+        # The arranger track (docs/features/arranger.md): an arranger event over its section, with its name
+        (".arranger-lane-row .arranger-lane-event", {"color": c["text"], "font-size": f"{sizes['small']}dp",
+                                                     "background-color": c["accent"] + "40",
+                                                     "border-width": f"{widths['hairline']}dp",
+                                                     "border-color": c["accent"]}),
         # The chord pads (docs/features/chord-pads.md): pads with their chord, degree and remote key, the selected,
         # triggered, locked and reference pads, the adaptive voicing reference indicator (a square in the reference
         # frame's color) and the adaptive voicing indicator (a dot), and the chord assistant's suggestions by how well
@@ -608,10 +789,12 @@ def theme_rcss(name: str, theme: dict, manifest: dict) -> str:
         (".chord-pads-key.black", {"background-color": c["background"]}),
         (".chord-pads-key.remote", {"background-color": mix(c["text"], c["accent"], .5)}),
         (".chord-pads-key.black.remote", {"background-color": mix(c["background"], c["accent"], .6)}),
-        (".chord-pads-key.section", {"background-color": mix(c["warning"], c["background"], .45)}),
-        (".chord-pads-key.modifier", {"background-color": c["success"]}),
-        (".chord-pads-key.hover", {"background-color": c["warning"]}),
-        (".chord-pads-key.played", {"background-color": c["accent2"]}),
+        # What the engine takes a key as wins over the remote range, on black keys too (#1447).
+        (".chord-pads-key.section, .chord-pads-key.black.section",
+         {"background-color": mix(c["warning"], c["background"], .45)}),
+        (".chord-pads-key.modifier, .chord-pads-key.black.modifier", {"background-color": c["success"]}),
+        (".chord-pads-key.hover, .chord-pads-key.black.hover", {"background-color": c["warning"]}),
+        (".chord-pads-key.played, .chord-pads-key.black.played", {"background-color": c["accent2"]}),
         (".chord-proximity-reference", {"color": c["accent"]}),
         (".chord-suggestion.recent .chord-suggestion-chord", {"font-weight": "bold"}),
         (".chord-suggestion", {"color": c["text"], "border-left-width": f"{widths['focus']}dp",
@@ -654,8 +837,12 @@ def theme_rcss(name: str, theme: dict, manifest: dict) -> str:
         (".event-display .automation-editor", {"border-width": f"{widths['hairline']}dp",
                                                "border-color": c["accent2"],
                                                "background-color": c["accent2"] + "1a"}),
-        # The mixer (docs/features/mixer-window.md): a line between the channel strips
+        # The mixer (docs/features/mixer-window.md): a line between the channel strips, and a channel's name on its
+        # track's color, which code sets as user data and can be any color: white text over it, or black text over a
+        # bright one, which gives every color at least WCAG's 4.5:1
         (".mixer-channel", {"border-right-width": f"{widths['hairline']}dp", "border-right-color": c["border"]}),
+        (".mixer-channel-name.colored", {"color": "#ffffff", "border-radius": f"{theme['radii']['small']}dp"}),
+        (".mixer-channel-name.colored.bright", {"color": "#000000"}),
         # The MIDI editors (docs/features/midi-editors.md): parts outside the part editing mode dimmed, the active part
         # and track lit, and the Visibility tab's checks: a check mark, or a rectangle while some parts show
         (".midi-editor .editor-part, .in-place-editor .editor-part",
@@ -669,7 +856,7 @@ def theme_rcss(name: str, theme: dict, manifest: dict) -> str:
         (".editor-visibility-check.partial", {"decorator": skin("checkbox-mixed")}),
         # The key editor (docs/features/key-editor.md): the keyboard's white and black keys, the keys of selected
         # notes lit, the grid's rows of black keys darker, the notes, selected ones in the second accent, those
-        # outside the part editing mode dimmed, the note being drawn, and the step input cursor
+        # outside the part editing mode dimmed, the note being drawn with its velocity, and the step input cursor
         (".key-editor-key", {"background-color": mix(c["surfaceRaised"], ivory, .8), "color": ebony,
                              "border-bottom-width": f"{widths['hairline']}px",
                              "border-bottom-color": c["textMuted"]}),
@@ -686,6 +873,7 @@ def theme_rcss(name: str, theme: dict, manifest: dict) -> str:
         (".key-note.inactive", {"background-color": mix(c["surface"], c["textMuted"], .3),
                                 "border-color": c["textMuted"]}),
         (".key-note.drawing", {"background-color": c["accent"] + "66"}),
+        (".key-editor-velocity", {"color": c["text"]}),
         (".key-editor-step-cursor", {"background-color": c["accent"]}),
         # The in-place editor (docs/features/in-place-editor.md): opaque over its track's events, a line below it
         (".in-place-editor", {"background-color": c["background"], "border-bottom-width": f"{widths['hairline']}px",
@@ -718,6 +906,10 @@ def theme_rcss(name: str, theme: dict, manifest: dict) -> str:
         (".articulation-row.sound-slots", {"border-bottom-width": f"{widths['hairline']}px",
                                            "border-bottom-color": c["border"]}),
         (".sound-slot", {"background-color": c["surfaceRaised"], "color": c["text"]}),
+        # On a slot color of the user's, light or dark (#1498), the name is in the darker or the lighter of the text
+        # and background colors
+        (".sound-slot.light", {"color": ebony}),
+        (".sound-slot.dark", {"color": ivory}),
         (".articulation-item.direction", {"background-color": mix(c["surfaceRaised"], c["accent"], .3)}),
         (".articulation-item.attribute", {"background-color": mix(c["surfaceRaised"], c["accent"], .6)}),
         (".articulation-item.reset", {"background-color": c["textMuted"]}),
@@ -869,6 +1061,7 @@ def theme_rcss(name: str, theme: dict, manifest: dict) -> str:
         ("menuitem .menu-keys", {"color": c["textMuted"]}),
         ("menuitem > .menu-arrow", {"decorator": skin("dropdown-arrow")}),
     ]
+    rules += flat_rules(theme, skin, on_accent)
     # The time display window's digits at each of its sizes (docs/features/transport-bar.md), a line twice as high.
     rules.extend((f".time-display.size-{i}", {"font-size": f"{size}dp", "line-height": f"{2 * size}dp"})
                  for i, size in enumerate(theme["timeDisplaySizes"]))
@@ -1018,7 +1211,7 @@ def main() -> int:
     manifests = {name: write_theme(root, name, theme) for name, theme in THEMES.items()}
     write_preview(root, manifests)
     write_readme(root, len(NINE_NAMES) + len(FIXED_NAMES))
-    print(f"Wrote {len(manifests)} themes × {len(NINE_NAMES) + len(FIXED_NAMES)} SVG assets to {root}")
+    print(f"Wrote {len(manifests)} themes x {len(NINE_NAMES) + len(FIXED_NAMES)} SVG assets to {root}")
     return 0
 
 

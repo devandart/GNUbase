@@ -26,7 +26,7 @@ saved, and a new project closes the editors.
 | `editor.input` | Notes played, such as a chord from a MIDI keyboard: with step input they go into the active part at the step input cursor as notes of the length quantize's length, and the cursor moves on by a step of the quantize grid; with MIDI input the first selected note takes the played pitch and velocities, and the next note is selected | pp. 1219-1220 |
 | `note.chord` | The chord notes of a part make (query) | p. 1216 |
 | `note.voicing` | Fits notes to a chord type, or inverts them or drops notes | pp. 1215-1217 |
-| `note.move` | Moves notes into another MIDI part, by `ticks` on the project's timeline and by `semitones` in pitch, keeping their ids and every other field: what a drag between in-place editors sends ([in-place-editor.md](in-place-editor.md)) | p. 1261 |
+| `note.move` | Moves notes into another MIDI part, by `ticks` on the project's timeline and by `semitones` in pitch, keeping their ids and every other field, with the selected controller events (`controllers`) shifted in time: what a drag between in-place editors sends ([in-place-editor.md](in-place-editor.md)) | pp. 1188, 1261 |
 
 - **Step input.** Move Insert Mode first moves the part's notes from the cursor on by a step; without Keep Existing
   Notes the notes that start within the step are replaced. The cursor must be within the active part. The inserted
@@ -106,7 +106,7 @@ editor of its own. A press on a key selects and deselects no notes.
 | Draw | A click draws a note of the length quantize's length, a drag a multiple of it | p. 1212 |
 | Erase | A click deletes the note | p. 1212 |
 | Trim | A click cuts off the note's end from the mouse on, with Alt its start up to the mouse | p. 1215 |
-| Split | A click splits the note at the snapped position; on a selected note, every selected note there (`note.split`: the rests keep the notes' values and their expression from the cut on; as with `event.split`, both pieces lose their quantize origin, so `quantize.reset` no longer moves them) | p. 1215 |
+| Split | A click splits the note at the snapped position; on a selected note, every selected note there (`note.split`: the rests keep the notes' values and their expression from the cut on; as with the notes that `event.split` cuts with `splitNotes`, both pieces lose their quantize origin, so `quantize.reset` no longer moves them) | p. 1215 |
 | Glue | A click glues the note to the next one of its pitch; the first one's values stay, the next one's expression joins its own (`note.glue`) | p. 1215 |
 
 - **Info line** (p. 1199). Start, end and length in bars and beats, the pitch as a name such as C3 (typing a number
@@ -154,8 +154,9 @@ menu.
   the engine API or has its window closed, and when the lower zone's Editor panel in a window of its own has that window
   closed or is docked again; the object selection tool selecting, deselecting, moving, resizing, inserting and deleting;
   the draw tool with Quantize Link and an eighth from the Length Quantize menu; the erase, trim (and with Alt), split
-  and glue tools; the transpose palette and typing a pitch on the info line; step input with its cursor, a click moving
-  it, and MIDI input selecting the next note; the Chord Editing section naming and changing a chord; the toolbox with
-  the setting on and off, with and without a modifier key, choosing tools; drags on the keyboard's left part zooming the
-  rows in and out between the limits and scrolling the note display, while a click there zooms nothing, and a click and
-  a drag there leaving a note an earlier press selected and the history alone.
+  and glue tools, and the split tool splitting the selected notes of two parts at one position in one undo step; the
+  transpose palette and typing a pitch on the info line; step input with its cursor, a click moving it, and MIDI input
+  selecting the next note; the Chord Editing section naming and changing a chord; the toolbox with the setting on and
+  off, with and without a modifier key, choosing tools; drags on the keyboard's left part zooming the rows in and out
+  between the limits, from the height a style sheet gives them, and scrolling the note display, while a click there
+  zooms nothing, and a click and a drag there leaving a note an earlier press selected and the history alone.

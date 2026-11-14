@@ -6,6 +6,7 @@
 
 #include <map>
 #include <string>
+#include <vector>
 
 namespace gnubase::engine
 {
@@ -41,7 +42,7 @@ namespace gnubase::engine::midi
 	// A new map (Add Map, p. 1280): one group and neither articulations nor sound slots.
 	ArticulationMap newArticulationMap();
 
-	// Registers articulationMap.add, articulationMap.set, articulationMap.remove, articulationMap.export and
-	// articulationMap.import.
+	// Registers articulationMap.add, articulationMap.set, articulationMap.remove, articulationMap.export,
+	// articulationMap.import and articulationMap.soundSlots.
 	void registerArticulationMapCommands(ProjectModel& model, Engine& engine);
 }

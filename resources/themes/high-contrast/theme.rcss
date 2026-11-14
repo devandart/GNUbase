@@ -461,7 +461,7 @@
 	.event-display .waveforms waveform
 	{
 		own-color-tint: none;
-		padding: 2dp 0;
+		event-inset: 0dp;
 	}
 	.event-display .overview
 	{
@@ -614,6 +614,14 @@
 		border-left-width: 1dp;
 		border-left-color: #ffff00;
 	}
+	.arranger-lane-row .arranger-lane-event
+	{
+		color: #ffffff;
+		font-size: 11dp;
+		background-color: #ffff0040;
+		border-width: 1dp;
+		border-color: #ffff00;
+	}
 	.chord-pad
 	{
 		color: #ffffff;
@@ -708,19 +716,19 @@
 	{
 		background-color: #999900;
 	}
-	.chord-pads-key.section
+	.chord-pads-key.section, .chord-pads-key.black.section
 	{
 		background-color: #8c6100;
 	}
-	.chord-pads-key.modifier
+	.chord-pads-key.modifier, .chord-pads-key.black.modifier
 	{
 		background-color: #40ff80;
 	}
-	.chord-pads-key.hover
+	.chord-pads-key.hover, .chord-pads-key.black.hover
 	{
 		background-color: #ffb000;
 	}
-	.chord-pads-key.played
+	.chord-pads-key.played, .chord-pads-key.black.played
 	{
 		background-color: #00ffff;
 	}
@@ -841,6 +849,15 @@
 		border-right-width: 1dp;
 		border-right-color: #ffffff;
 	}
+	.mixer-channel-name.colored
+	{
+		color: #ffffff;
+		border-radius: 2dp;
+	}
+	.mixer-channel-name.colored.bright
+	{
+		color: #000000;
+	}
 	.midi-editor .editor-part, .in-place-editor .editor-part
 	{
 		color: #c8c8c8;
@@ -922,6 +939,10 @@
 	{
 		background-color: #ffff0066;
 	}
+	.key-editor-velocity
+	{
+		color: #ffffff;
+	}
 	.key-editor-step-cursor
 	{
 		background-color: #ffff00;
@@ -987,6 +1008,14 @@
 	.sound-slot
 	{
 		background-color: #0d0d0d;
+		color: #ffffff;
+	}
+	.sound-slot.light
+	{
+		color: #000000;
+	}
+	.sound-slot.dark
+	{
 		color: #ffffff;
 	}
 	.articulation-item.direction
@@ -1410,6 +1439,183 @@
 	{
 		decorator: svg(dropdown-arrow.svg);
 	}
+	menubar
+	{
+	}
+	.toolbar
+	{
+		decorator: svg-ninepatch(toolbar.svg, 6 6 6 6);
+	}
+	.toolbar button:not(.toggle):not(.primary), .transport button:not(.toggle):not(.primary)
+	{
+		decorator: svg-ninepatch(button-normal.svg, 6 6 6 6);
+		color: #ffffff;
+	}
+	.toolbar button:not(.toggle):not(.primary) svg.icon, .transport button:not(.toggle):not(.primary) svg.icon
+	{
+		image-color: #ffffff;
+	}
+	.toolbar button[menu]:not(.toggle):not(.primary), .transport button[menu]:not(.toggle):not(.primary)
+	{
+		decorator: svg-ninepatch(dropdown-button-normal.svg, 6 6 6 6);
+	}
+	.toolbar button.icon-only[menu]:not(.toggle):not(.primary), .transport button.icon-only[menu]:not(.toggle):not(.primary)
+	{
+	}
+	.toolbar button:not(.toggle):not(.primary):hover, .transport button:not(.toggle):not(.primary):hover
+	{
+		decorator: svg-ninepatch(button-hover.svg, 6 6 6 6);
+	}
+	.toolbar button:not(.toggle):not(.primary):hover svg.icon, .transport button:not(.toggle):not(.primary):hover svg.icon
+	{
+		image-color: #ffffff;
+	}
+	.toolbar button[menu]:not(.toggle):not(.primary):hover, .transport button[menu]:not(.toggle):not(.primary):hover
+	{
+		decorator: svg-ninepatch(dropdown-button-hover.svg, 6 6 6 6);
+	}
+	.toolbar button.icon-only[menu]:not(.toggle):not(.primary):hover, .transport button.icon-only[menu]:not(.toggle):not(.primary):hover
+	{
+	}
+	.toolbar button:not(.toggle):not(.primary):active, .transport button:not(.toggle):not(.primary):active
+	{
+		decorator: svg-ninepatch(button-pressed.svg, 6 6 6 6);
+	}
+	.toolbar button[menu]:not(.toggle):not(.primary):active, .transport button[menu]:not(.toggle):not(.primary):active
+	{
+		decorator: svg-ninepatch(button-pressed.svg, 6 6 6 6);
+	}
+	.toolbar button.checked[menu]:not(.toggle):not(.primary), .transport button.checked[menu]:not(.toggle):not(.primary)
+	{
+		decorator: svg-ninepatch(button-checked.svg, 6 6 6 6);
+	}
+	.toolbar button.checked:not(.toggle):not(.primary), .transport button.checked:not(.toggle):not(.primary)
+	{
+		decorator: svg-ninepatch(button-checked.svg, 6 6 6 6);
+	}
+	.toolbar button.checked:not(.toggle):not(.primary) svg.icon, .transport button.checked:not(.toggle):not(.primary) svg.icon
+	{
+		image-color: #ffffff;
+	}
+	.toolbar button.suspended:not(.toggle):not(.primary), .transport button.suspended:not(.toggle):not(.primary)
+	{
+		decorator: svg-ninepatch(button-normal.svg, 6 6 6 6);
+		color: #ffb000;
+	}
+	.toolbar button.tapping:not(.toggle):not(.primary), .transport button.tapping:not(.toggle):not(.primary)
+	{
+		decorator: svg-ninepatch(button-pressed.svg, 6 6 6 6);
+	}
+	.toolbar button:not(.toggle):not(.primary):disabled, .transport button:not(.toggle):not(.primary):disabled
+	{
+		decorator: svg-ninepatch(button-disabled.svg, 6 6 6 6);
+		color: #c8c8c8;
+	}
+	.toolbar button:not(.toggle):not(.primary):disabled svg.icon, .transport button:not(.toggle):not(.primary):disabled svg.icon
+	{
+		image-color: #c8c8c8;
+	}
+	.toolbar button:not(.toggle):not(.primary):focus-visible, .transport button:not(.toggle):not(.primary):focus-visible
+	{
+		decorator: svg-ninepatch(focus-ring.svg, 6 6 6 6), svg-ninepatch(button-normal.svg, 6 6 6 6);
+	}
+	.toolbar button.checked:not(.toggle):not(.primary):focus-visible, .transport button.checked:not(.toggle):not(.primary):focus-visible
+	{
+		decorator: svg-ninepatch(focus-ring.svg, 6 6 6 6), svg-ninepatch(button-checked.svg, 6 6 6 6);
+	}
+	.transport #start svg.icon
+	{
+		image-color: #ffffff;
+	}
+	.transport #start.checked
+	{
+		decorator: svg-ninepatch(button-checked.svg, 6 6 6 6);
+	}
+	.transport #start.checked svg.icon
+	{
+		image-color: #ffffff;
+	}
+	.transport #record svg.icon
+	{
+		image-color: #ffffff;
+	}
+	.transport #record.checked
+	{
+		decorator: svg-ninepatch(button-checked.svg, 6 6 6 6);
+	}
+	.transport #record.checked svg.icon
+	{
+		image-color: #ffffff;
+	}
+	.transport .primary-time
+	{
+	}
+	tabset tabs
+	{
+		decorator: svg-ninepatch(tabbar.svg, 6 6 6 6);
+	}
+	tabset tab
+	{
+		decorator: svg-ninepatch(tab-normal.svg, 6 6 6 6);
+		color: #c8c8c8;
+	}
+	tabset tab:hover
+	{
+		decorator: svg-ninepatch(tab-hover.svg, 6 6 6 6);
+		color: #ffffff;
+	}
+	tabset tab:selected
+	{
+		decorator: svg-ninepatch(tab-active.svg, 6 6 6 6);
+		color: #ffffff;
+	}
+	.docking [zone]
+	{
+	}
+	.docking .zone-frame
+	{
+	}
+	.event-display
+	{
+	}
+	.track-list
+	{
+	}
+	.track-list listitem
+	{
+	}
+	.track-list listitem:hover
+	{
+	}
+	.track-list listitem.selected
+	{
+	}
+	.inspector-section button.section-header
+	{
+		decorator: svg-ninepatch(disclosure-open.svg, 6 6 6 6);
+		color: #ffffff;
+	}
+	.inspector-section.collapsed button.section-header
+	{
+		decorator: svg-ninepatch(disclosure-closed.svg, 6 6 6 6);
+	}
+	.inspector-section button.section-header:hover
+	{
+		decorator: svg-ninepatch(button-hover.svg, 6 6 6 6);
+	}
+	.inspector-section button.section-header:active
+	{
+		decorator: svg-ninepatch(button-pressed.svg, 6 6 6 6);
+	}
+	.mixer-channel
+	{
+	}
+	.mixer-channel-name
+	{
+	}
+	.transport .display
+	{
+	}
 	.time-display.size-0
 	{
 		font-size: 32dp;
@@ -1514,5 +1720,13 @@
 	menubar button:focus-visible
 	{
 		decorator: svg-ninepatch(focus-ring.svg, 6 6 6 6);
+	}
+	.inspector-section button.section-header:focus-visible
+	{
+		decorator: svg-ninepatch(focus-ring.svg, 6 6 6 6), svg-ninepatch(disclosure-open.svg, 6 6 6 6);
+	}
+	.inspector-section.collapsed button.section-header:focus-visible
+	{
+		decorator: svg-ninepatch(focus-ring.svg, 6 6 6 6), svg-ninepatch(disclosure-closed.svg, 6 6 6 6);
 	}
 }

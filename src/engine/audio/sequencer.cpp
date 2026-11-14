@@ -210,8 +210,11 @@ namespace gnubase::engine
 			track.all.controllers.push_back(controller);
 			if (controller.part >= 0 && static_cast<size_t>(controller.part) < parts.size())
 				track.parts[static_cast<size_t>(controller.part)].index.controllers.push_back(controller);
+			else if (controller.part == g_soundSlotPart)
+				track.slots.controllers.push_back(controller);
 		}
 		index(track.all);
+		index(track.slots);
 		for (ChasePart& part : track.parts)
 			index(part.index);
 		return track;
@@ -1026,6 +1029,9 @@ namespace gnubase::engine
 				if (part.range.end > position)
 					consider(part.index, index, position, chase, stopped);
 			}
+			// The sound slot the track sent last, wherever the part that sent it is (#1521); after the parts' events,
+			// as it plays after them at one position.
+			consider(track.slots, index, position, chase, stopped);
 		}
 
 		// The kinds found, in time order; at one position by track, then kind, so a bank select precedes its program.
@@ -1143,8 +1149,10 @@ namespace gnubase::engine
 	{
 		const midi::Modifiers& modifiers = sequence.modifiers;
 		using Type = graph::ProcessEvent::Type;
-		// The track's MIDI channel plays them on it (reference manual p. 351); the keys stay where they came in.
-		if (event.type != Type::NoteOn && event.type != Type::NoteOff && event.type != Type::PolyPressure)
+		// The track's MIDI channel plays them on it (reference manual p. 351); the keys stay where they came in. Poly
+		// pressure and a note's expression follow the note its key plays, as MPE input's does (#1514).
+		if (event.type != Type::NoteOn && event.type != Type::NoteOff && event.type != Type::PolyPressure &&
+			event.type != Type::NoteExpression)
 		{
 			if (sequence.inputChannel >= 0 &&
 				(event.type == Type::Controller || event.type == Type::PitchBend ||
@@ -1153,6 +1161,9 @@ namespace gnubase::engine
 			return true;
 		}
 		const size_t from = ((event.channel % 16) * 128) + (event.key % 128);
+		// Whether the key is a drum sound's pitch (midi.inject drumSounds): past here the note is what plays, so the
+		// flag means nothing downstream.
+		const bool drumSound = std::exchange(event.drumSound, false);
 		// The key no longer holds the note it played (a second note-on, or its note-off).
 		const auto letGo = [this, from]
 		{
@@ -1171,7 +1182,7 @@ namespace gnubase::engine
 			if (sequence.drumInput.size() == 2 * static_cast<size_t>(g_drumSounds))
 			{
 				// The I-notes' sounds, or with drumSounds the sounds themselves (the second 128).
-				const LiveDrumNote& drum = sequence.drumInput[(event.drumSound ? g_drumSounds : 0) + (event.key % 128)];
+				const LiveDrumNote& drum = sequence.drumInput[(drumSound ? g_drumSounds : 0) + (event.key % 128)];
 				pitch = drum.key;
 				channel = drum.channel >= 0 ? drum.channel : channel;
 				plays = !drum.mute;

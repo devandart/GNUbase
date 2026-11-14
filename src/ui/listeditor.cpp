@@ -4,6 +4,7 @@
 #include "engine/midi/chords.h"
 #include "engine/midi/midivalues.h"
 #include "engine/midi/quantizesettings.h"
+#include "ui/articulationnames.h"
 #include "ui/timeformat.h"
 
 #include <RmlUi/Core/Context.h>
@@ -80,30 +81,6 @@ namespace gnubase::ui
 		bool hasChannel(const std::string& type)
 		{
 			return type != "sysEx" && type != "articulation";
-		}
-
-		// Names separated by commas, as the Attributes column shows a note's attributes.
-		std::string joined(const std::vector<std::string>& names)
-		{
-			std::string text;
-			for (const std::string& name : names)
-				text += (text.empty() ? "" : ", ") + name;
-			return text;
-		}
-
-		// Names typed separated by commas, without the spaces around them.
-		std::vector<std::string> names(const std::string& text)
-		{
-			std::vector<std::string> found;
-			std::string name;
-			for (std::istringstream stream(text); std::getline(stream, name, ',');)
-			{
-				name.erase(0, name.find_first_not_of(' '));
-				name.erase(name.find_last_not_of(' ') + 1);
-				if (!name.empty())
-					found.push_back(name);
-			}
-			return found;
 		}
 
 		const char* typeLabel(const std::string& type)
@@ -461,7 +438,7 @@ namespace gnubase::ui
 				return hex(row.data);
 			if (row.type == "articulation")
 				return row.articulation + (row.reset ? " (Reset)" : "");
-			return joined(row.articulations);
+			return joinNames(row.articulations);
 		}
 		const std::optional<int64_t> value = number(row, field);
 		if (!value)
@@ -734,7 +711,7 @@ namespace gnubase::ui
 			else if (edited.isNote())
 			{
 				// The note's attributes, names separated by commas; empty clears them (p. 1291).
-				changes[{edited.part, "note.set"}].push_back({{"id", edited.id}, {"articulations", names(typed)}});
+				changes[{edited.part, "note.set"}].push_back({{"id", edited.id}, {"articulations", splitNames(typed)}});
 				edit("Change Articulations", std::move(changes));
 			}
 			else if (edited.type == "articulation")
