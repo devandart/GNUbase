@@ -407,7 +407,9 @@ TEST_CASE("the default theme's bars, tabs and inspector headers are flat, the ot
 			const size_t first = selector.find_first_not_of(" \t");
 			const std::string name = selector.substr(first, selector.find_last_not_of(" \t\r") + 1 - first);
 			// No rule reaches all the transport's buttons, its setup pane's too, only those of its sections or one by
-			// its id; rules for buttons in bars leave toggle and primary buttons their own skins.
+			// its id, nor all a toolbar's, which the transport panel is; rules for buttons in bars leave toggle and
+			// primary buttons their own skins.
+			CHECK(name.find(".toolbar button") == std::string::npos);
 			for (size_t at = name.find(".transport button"); at != std::string::npos;
 				at = name.find(".transport button", at + 1))
 				CHECK(name.compare(at, std::string_view(".transport button#").size(), ".transport button#") == 0);

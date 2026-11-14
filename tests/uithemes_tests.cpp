@@ -277,7 +277,9 @@ TEST_CASE(
 	Rml::ElementDocument* document = window.context().LoadDocumentFromMemory(R"(<rml><body>
 		<div class="toolbar"><button id="tool">Tool</button><button id="tool-checked" class="checked">On</button>
 			<button id="value" menu="value-menu">Bar</button>
-			<button id="value-off" menu="value-menu">Bar</button></div>
+			<button id="value-off" menu="value-menu">Bar</button>
+			<button id="value-checked" class="checked" menu="value-menu">Bar</button>
+			<button id="icon-menu" class="icon-only" menu="value-menu">C</button></div>
 		<div class="strip transport"><div class="transport-section"><button id="locate">L</button>
 			<button id="start" class="icon-only checked">S</button><button id="record" class="icon-only checked">R</button>
 			<valuefield id="tempo"/><textdisplay id="signature" class="display"/></div>
@@ -359,12 +361,18 @@ TEST_CASE(
 		{
 			CHECK_THAT(in("value", {"hover", "active"}), ContainsSubstring("dropdown-button-pressed.svg"));
 			CHECK_THAT(in("value-off", {"disabled"}), ContainsSubstring("dropdown-button-disabled.svg"));
+			// An icon-only menu button stays flat, its icon the arrow.
+			for (const char* state : {"active", "disabled"})
+			{
+				INFO(state);
+				CHECK_THAT(in("icon-menu", {state}), !ContainsSubstring(".svg"));
+			}
 		}
 
 		// The focus ring over every state of a bar button.
 		const std::vector<std::pair<const char*, std::vector<const char*>>> focused{{"tool", {}}, {"tool", {"hover"}},
-			{"tool-checked", {}}, {"value", {}}, {"value", {"hover"}}, {"start", {}}, {"record", {}},
-			{"locate", {"hover"}}};
+			{"tool-checked", {}}, {"value", {}}, {"value", {"hover"}}, {"value-checked", {}}, {"icon-menu", {"hover"}},
+			{"start", {}}, {"record", {}}, {"locate", {"hover"}}};
 		for (const auto& [id, states] : focused)
 		{
 			INFO(id << " " << states.size() << " states");

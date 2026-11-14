@@ -202,10 +202,10 @@ namespace gnubase::test
 		std::vector<std::string> shown;
 		Rml::Context& context = main().context();
 		for (int i = 0; i < context.GetNumDocuments(); ++i)
-			if (Rml::Element* sections = context.GetDocument(i)->GetElementById(container))
+			if (const Rml::Element* sections = context.GetDocument(i)->GetElementById(container))
 				for (int child = 0; child < sections->GetNumChildren(); ++child)
 				{
-					Rml::Element* section = sections->GetChild(child);
+					const Rml::Element* section = sections->GetChild(child);
 					if (section->HasAttribute("section") && !section->IsClassSet("hidden") &&
 						!section->IsClassSet("no-room"))
 						shown.push_back(section->GetAttribute<Rml::String>("section", ""));

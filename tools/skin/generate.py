@@ -469,6 +469,9 @@ def flat_rules(theme: dict, skin, on_accent: str) -> list:
         # A disabled menu button keeps its field, dimmed, as the padding for its arrow stays
         (bars("[menu]", ":disabled"), {"decorator": skin("dropdown-button-disabled"), "color": dim},
          {"decorator": skin("dropdown-button-disabled"), "color": c["textMuted"]}),
+        # Icon-only menu buttons keep no field when pressed or disabled either, the arrow being their icon
+        (bars(".icon-only[menu]", ":active"), {"decorator": "none"}, {}),
+        (bars(".icon-only[menu]", ":disabled"), {"decorator": "none"}, {}),
         # Start in the accent, filled while playing; Record in the danger color, filled while recording
         (".transport #start svg.icon", {"image-color": accent}, {"image-color": c["text"]}),
         (".transport button#start.checked", {"decorator": "none", "background-color": accent},
@@ -1121,7 +1124,8 @@ def focusable(selector: str) -> bool:
 def with_focus_rings(rules: list, ring: str) -> list:
     """The rules, then for each that gives a FOCUSABLE widget a skin its :focus-visible twin with the ring.
 
-    The twins come last, so the ring also shows on a hovered widget. The ring is the first decorator, because RmlUi
+    The twins come after the rules (flat_rules, which follow them, add their own), so the ring also shows on a hovered
+    widget. The ring is the first decorator, because RmlUi
     draws the first one on top.
     """
     twins = []

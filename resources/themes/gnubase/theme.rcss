@@ -1646,6 +1646,14 @@
 		decorator: svg-ninepatch(dropdown-button-disabled.svg, 6 20 6 6);
 		color: #676e84;
 	}
+	.toolbar:not(.transport) button.icon-only[menu]:not(.toggle):not(.primary):active, .transport .transport-section button.icon-only[menu]:not(.toggle):not(.primary):active
+	{
+		decorator: none;
+	}
+	.toolbar:not(.transport) button.icon-only[menu]:not(.toggle):not(.primary):disabled, .transport .transport-section button.icon-only[menu]:not(.toggle):not(.primary):disabled
+	{
+		decorator: none;
+	}
 	.transport #start svg.icon
 	{
 		image-color: #10dff2;
